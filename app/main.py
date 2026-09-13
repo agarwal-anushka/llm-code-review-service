@@ -13,10 +13,17 @@ class ReviewRequest(BaseModel):
     language: str = Field(..., min_length=1, max_length=50)
 
 
+def make_cache_key(code_snippet: str, language: str) -> str:
+    # Include language so identical source text submitted under two
+    # different languages doesn't collide on the same cache entry.
+    payload = f"{language}:{code_snippet}"
+    return "cache:" + hashlib.sha256(payload.encode()).hexdigest()
+
+
 @app.post("/review")
 def submit_review(request: ReviewRequest):
     # check cache before creating a job
-    cache_key = "cache:" + hashlib.sha256(request.code_snippet.encode()).hexdigest()
+    cache_key = make_cache_key(request.code_snippet, request.language)
 
     try:
         cached_result = get_redis().get(cache_key)
