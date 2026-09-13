@@ -11,6 +11,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def make_cache_key(code_snippet: str, language: str) -> str:
+    # Include language so identical source text submitted under two
+    # different languages doesn't collide on the same cache entry.
+    payload = f"{language}:{code_snippet}"
+    return "cache:" + hashlib.sha256(payload.encode()).hexdigest()
+
+
 def process_job(job_id):
     conn = get_connection()
     try:
@@ -47,7 +54,7 @@ def process_job(job_id):
     print(f"Processing job {job_id} | language: {language} | attempts: {attempts + 1}")
 
     # generate cache key
-    cache_key = "cache:" + hashlib.sha256(code_snippet.encode()).hexdigest()
+    cache_key = make_cache_key(code_snippet, language)
 
     # check cache
     redis_client = get_redis()
