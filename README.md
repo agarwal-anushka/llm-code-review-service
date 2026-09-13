@@ -61,7 +61,7 @@ A code review service that uses LLMs to analyze code for bugs, security vulnerab
 
 **Postgres commit before Redis push** — Postgres is the source of truth. Pushing to Redis before the insert succeeds would send workers after jobs that don't exist.
 
-**Content-addressed cache** — SHA-256 of the code is the cache key. Same code always maps to the same key. No separate deduplication logic needed. Measured 50x speedup on cache hits (796ms → 16ms).
+**Content-addressed cache** — SHA-256 of `language:code_snippet` is the cache key (language is included so identical text submitted under two different languages doesn't collide on the same entry). Same input always maps to the same key. No separate deduplication logic needed. Measured 50x speedup on cache hits (796ms → 16ms).
 
 **UUID job IDs** — integer IDs are enumerable and require a central counter. UUIDs are non-guessable and generated independently by any process.
 
@@ -89,12 +89,13 @@ A code review service that uses LLMs to analyze code for bugs, security vulnerab
 ```
 llm-code-review-service/
 ├── app/
-│   ├── main.py         # POST /review, GET /review/{id}
+│   ├── main.py         # POST /review, GET /review/{id}, cache-key helper
 │   ├── database.py     # Postgres pool + Redis client
 │   └── reviewer.py     # Groq + Gemini integration
 ├── worker/
 │   └── worker.py       # Job processor — cache, retry, stuck job recovery
 ├── docker-compose.yml
+├── requirements.txt
 ├── demo.py
 └── .env                # Not committed
 ```
@@ -233,7 +234,7 @@ Cache hit response:
 
 ## Worker
 
-- **Cache check** — SHA-256 hash looked up in Redis before any LLM call. 24h TTL.
+- **Cache check** — SHA-256 hash of `language:code_snippet` looked up in Redis before any LLM call. 24h TTL.
 - **Retry with backoff** — up to 3 attempts, wait doubles each time (2s → 4s → 8s). Groq tried first, then Gemini.
 - **Stuck job recovery** — every 60 seconds, jobs stuck in `processing` for 5+ minutes are requeued.
 
